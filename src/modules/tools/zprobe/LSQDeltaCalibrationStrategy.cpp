@@ -31,8 +31,6 @@
 
 const int MAX_DELTA_PROBE_POINTS = 13;
 const int NumDeltaFactors = 7;
-FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
-FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
 
 bool LSQDeltaCalibrationStrategy::handleConfig()
 {
@@ -266,7 +264,7 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
     
     for (int iteration = 0; iteration < 2; iteration++) {
         // Build derivative matrix
-        //FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
+        FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
         for (int i = 0; i < sample_count; i++) {
             get_probe_point(i, cartesian_mm, sample_count, probe_radius);
             cartesian_mm[2] = probe_heights[i];
@@ -280,7 +278,7 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
         print_matrix("Derivative Matrix", derivative_matrix, sample_count, num_factors, gcode);
         
         // Build normal matrix from derivatives
-        //FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
+        FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
         for (int i = 0; i < num_factors; i++)
         {
             for (int j = 0; j < num_factors; j++)
