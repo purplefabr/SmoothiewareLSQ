@@ -1,3 +1,7 @@
+==SmoothiewareLSQ
+
+Smoothieware Least SQuares is a fork from smoothieware edge that adds in the least squares delta calibration algorithm pioneered by David Crocker (dc42) so thanks go to David for proving his method as a good solution to delta calibration.
+
 Current build status: {{https://travis-ci.org/Smoothieware/Smoothieware.svg?branch=edge}}
 
 ==Overview
