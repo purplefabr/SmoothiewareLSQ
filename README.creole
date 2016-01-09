@@ -5,11 +5,11 @@ Smoothieware Least SQuares is a fork from smoothieware edge that adds in the lea
 ==Installing SmoothiewareLSQ
 
 Install as normal Smoothieware:
-- Copy firmware.bin onto SD card (prebuilt binaries are in the /bin folder)
+* Copy firmware.bin onto SD card (prebuilt binaries are in the /bin folder)
 
 Add four LSQ specific configuration settings which are shown in the example delta configs:
-- AzteegX5Mini.delta
-- Smoothieboard.delta
+* AzteegX5Mini.delta
+* Smoothieboard.delta
 (Search for: leveling-strategy.lsq-delta-calibration)
 
 Comment out any existing calibration strategy configuration lines.
