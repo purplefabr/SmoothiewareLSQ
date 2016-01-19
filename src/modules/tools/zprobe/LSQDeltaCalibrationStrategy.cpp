@@ -31,26 +31,24 @@
 
 const int MAX_DELTA_PROBE_POINTS = 13;
 const int NumDeltaFactors = 7;
-FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
-FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
 
 bool LSQDeltaCalibrationStrategy::handleConfig()
 {
     // default is probably wrong
-    float r = THEKERNEL->config->value(leveling_strategy_checksum, dc_delta_calibration_strategy_checksum, radius_checksum)->by_default(-1)->as_number();
+    float r = THEKERNEL->config->value(leveling_strategy_checksum, lsq_delta_calibration_strategy_checksum, radius_checksum)->by_default(-1)->as_number();
     if (r == -1) {
         // deprecated config syntax]
         r = THEKERNEL->config->value(zprobe_checksum, probe_radius_checksum)->by_default(100.0F)->as_number();
     }
     this->probe_radius = r;
 
-    this->sample_count = THEKERNEL->config->value(leveling_strategy_checksum, dc_delta_calibration_strategy_checksum, sample_count_checksum)->by_default(13)->as_number();
+    this->sample_count = THEKERNEL->config->value(leveling_strategy_checksum, lsq_delta_calibration_strategy_checksum, sample_count_checksum)->by_default(13)->as_number();
 
-    this->factors = THEKERNEL->config->value(leveling_strategy_checksum, dc_delta_calibration_strategy_checksum, factors_checksum)->by_default(6)->as_number();
+    this->factors = THEKERNEL->config->value(leveling_strategy_checksum, lsq_delta_calibration_strategy_checksum, factors_checksum)->by_default(6)->as_number();
     
     // the initial height above the bed we stop the intial move down after home to find the bed
     // this should be a height that is enough that the probe will not hit the bed and is an offset from max_z (can be set to 0 if max_z takes into account the probe offset)
-    this->initial_height= THEKERNEL->config->value(leveling_strategy_checksum, dc_delta_calibration_strategy_checksum, initial_height_checksum)->by_default(10)->as_number();
+    this->initial_height= THEKERNEL->config->value(leveling_strategy_checksum, lsq_delta_calibration_strategy_checksum, initial_height_checksum)->by_default(10)->as_number();
     
     return true;
 }
@@ -59,7 +57,7 @@ bool LSQDeltaCalibrationStrategy::handleGcode(Gcode *gcode)
 {
     if (gcode->has_g) {
         // G code processing
-        if (gcode->g == 32) { // DC auto calibration for delta
+        if (gcode->g == 32) { // LSQ auto calibration for delta
             // first wait for an empty queue i.e. no moves left
             THEKERNEL->conveyor->wait_for_empty_queue();
             if (!calibrate(gcode)) {
@@ -133,8 +131,8 @@ bool LSQDeltaCalibrationStrategy::manual_probe(Gcode *gcode)
    
    The usage is as follows:
 
-   G32 (Fx) (Sx) (Rx.xx) (K)
-        Fx : Number of factors.  Valid values are 3, 4, 6, 7.  
+   G32 (Nx) (Sx) (Rx.xx) (K)
+        Nx : Number of factors.  Valid values are 3, 4, 6, 7.
              Default is 6.
              3 = calibrate endstops for towers A,B,C
              4 = calibrate endstops and delta radius
@@ -152,10 +150,10 @@ bool LSQDeltaCalibrationStrategy::manual_probe(Gcode *gcode)
 bool LSQDeltaCalibrationStrategy::calibrate(Gcode *gcode)
 {
     int factors = this->factors;
-    if (gcode->has_letter('F')) {
-        factors = gcode->get_value('F');
+    if (gcode->has_letter('N')) {
+        factors = gcode->get_value('N');
         if (factors != 3 && factors != 4 && factors != 6 && factors != 7) {
-            gcode->stream->printf("Number of factors for DC calibration is incorrect--must be 3, 4, 6, or 7");
+            gcode->stream->printf("Number of factors for LSQ calibration is incorrect--must be 3, 4, 6, or 7");
             return false;
         }
     }
@@ -266,7 +264,7 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
     
     for (int iteration = 0; iteration < 2; iteration++) {
         // Build derivative matrix
-        //FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
+        FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
         for (int i = 0; i < sample_count; i++) {
             get_probe_point(i, cartesian_mm, sample_count, probe_radius);
             cartesian_mm[2] = probe_heights[i];
@@ -280,7 +278,7 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
         print_matrix("Derivative Matrix", derivative_matrix, sample_count, num_factors, gcode);
         
         // Build normal matrix from derivatives
-        //FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
+        FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
         for (int i = 0; i < num_factors; i++)
         {
             for (int j = 0; j < num_factors; j++)
