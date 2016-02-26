@@ -29,7 +29,7 @@
 // deprecated
 #define probe_radius_checksum CHECKSUM("probe_radius")
 
-const int MAX_DELTA_PROBE_POINTS = 13;
+const int MAX_DELTA_PROBE_POINTS = 7;
 const int NumDeltaFactors = 7;
 
 bool LSQDeltaCalibrationStrategy::handleConfig()
