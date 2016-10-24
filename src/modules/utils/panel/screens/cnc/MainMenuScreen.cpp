@@ -26,6 +26,7 @@
 #include "Planner.h"
 #include "StepperMotor.h"
 #include "EndstopsPublicAccess.h"
+#include "LaserScreen.h"
 
 #include <string>
 using namespace std;
@@ -48,9 +49,9 @@ void MainMenuScreen::setupConfigureScreen()
     auto mvs= new ModifyValuesScreen(true); // delete itself on exit
     mvs->set_parent(this);
 
-    // acceleration
-    mvs->addMenuItem("Acceleration", // menu name
-        []() -> float { return THEKERNEL->planner->get_acceleration(); }, // getter
+   // acceleration
+    mvs->addMenuItem("def Acceleration", // menu name
+        []() -> float { return THEROBOT->get_default_acceleration(); }, // getter
         [this](float acc) { send_gcode("M204", 'S', acc); }, // setter
         10.0F, // increment
         1.0F, // Min
@@ -59,30 +60,24 @@ void MainMenuScreen::setupConfigureScreen()
 
     // steps/mm
     mvs->addMenuItem("X steps/mm",
-        []() -> float { return THEKERNEL->robot->actuators[0]->get_steps_per_mm(); },
-        [](float v) { THEKERNEL->robot->actuators[0]->change_steps_per_mm(v); },
+        []() -> float { return THEROBOT->actuators[0]->get_steps_per_mm(); },
+        [](float v) { THEROBOT->actuators[0]->change_steps_per_mm(v); },
         0.1F,
         1.0F
         );
 
     mvs->addMenuItem("Y steps/mm",
-        []() -> float { return THEKERNEL->robot->actuators[1]->get_steps_per_mm(); },
-        [](float v) { THEKERNEL->robot->actuators[1]->change_steps_per_mm(v); },
+        []() -> float { return THEROBOT->actuators[1]->get_steps_per_mm(); },
+        [](float v) { THEROBOT->actuators[1]->change_steps_per_mm(v); },
         0.1F,
         1.0F
         );
 
     mvs->addMenuItem("Z steps/mm",
-        []() -> float { return THEKERNEL->robot->actuators[2]->get_steps_per_mm(); },
-        [](float v) { THEKERNEL->robot->actuators[2]->change_steps_per_mm(v); },
+        []() -> float { return THEROBOT->actuators[2]->get_steps_per_mm(); },
+        [](float v) { THEROBOT->actuators[2]->change_steps_per_mm(v); },
         0.1F,
         1.0F
-        );
-
-    mvs->addMenuItem("Z Home Ofs",
-        []() -> float { void *rd; PublicData::get_value( endstops_checksum, home_offset_checksum, &rd ); return rd==nullptr ? 0.0F : ((float*)rd)[2]; },
-        [this](float v) { send_gcode("M206", 'Z', v); },
-        0.01F
         );
 
     mvs->addMenuItem("Contrast",
@@ -100,7 +95,7 @@ void MainMenuScreen::setupConfigureScreen()
 void MainMenuScreen::on_enter()
 {
     THEPANEL->enter_menu_mode();
-    THEPANEL->setup_menu(7);
+    THEPANEL->setup_menu(THEPANEL->has_laser()?8:7);
     this->refresh_menu();
 }
 
@@ -117,13 +112,14 @@ void MainMenuScreen::on_refresh()
 void MainMenuScreen::display_menu_line(uint16_t line)
 {
     switch ( line ) {
-        case 0: THEPANEL->lcd->printf("Watch"); break;
+        case 0: THEPANEL->lcd->printf("DRO"); break;
         case 1: if(THEKERNEL->is_halted()) THEPANEL->lcd->printf("Clear HALT"); else THEPANEL->lcd->printf(THEPANEL->is_playing() ? "Abort" : "Play"); break;
         case 2: THEPANEL->lcd->printf("Jog"); break;
         case 3: THEPANEL->lcd->printf("Prepare"); break;
         case 4: THEPANEL->lcd->printf("Custom"); break;
         case 5: THEPANEL->lcd->printf("Configure"); break;
         case 6: THEPANEL->lcd->printf("Probe"); break;
+        case 7: THEPANEL->lcd->printf("Laser"); break; // only used if THEPANEL->has_laser()
     }
 }
 
@@ -142,6 +138,7 @@ void MainMenuScreen::clicked_menu_entry(uint16_t line)
         case 4: THEPANEL->enter_screen(THEPANEL->custom_screen ); break;
         case 5: setupConfigureScreen(); break;
         case 6: THEPANEL->enter_screen((new ProbeScreen())->set_parent(this)); break;
+        case 7: THEPANEL->enter_screen((new LaserScreen())->set_parent(this)); break; // self deleting, only used if THEPANEL->has_laser()
     }
 }
 

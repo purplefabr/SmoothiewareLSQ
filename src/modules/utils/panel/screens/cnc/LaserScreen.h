@@ -5,46 +5,22 @@
       You should have received a copy of the GNU General Public License along with Smoothie. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef WATCHSCREEN_H
-#define WATCHSCREEN_H
+#pragma once
 
 #include "PanelScreen.h"
 
-#include <tuple>
-
-class WatchScreen : public PanelScreen
+class LaserScreen : public PanelScreen
 {
 public:
-    WatchScreen();
-    ~WatchScreen();
+    LaserScreen();
     void on_refresh();
     void on_enter();
-    void on_main_loop();
+    void on_exit();
     void display_menu_line(uint16_t line);
+    void clicked_menu_entry(uint16_t line);
+    int idle_timeout_secs() { return 60; }
 
 private:
-    void get_current_status();
-    float get_current_speed();
-    void set_speed();
-    void get_current_pos(float *cp);
-    void get_sd_play_info();
-    const char *get_status();
-    const char *get_network();
-
-    std::vector<uint16_t> temp_controllers;
-
-    uint32_t update_counts;
-    int current_speed;
-    float pos[3];
-    unsigned long elapsed_time;
-    unsigned int sd_pcnt_played;
-    char *ipstr;
-
-    struct {
-        bool speed_changed:1;
-        bool issue_change_speed:1;
-        bool fan_state:1;
-    };
+    void testFireScreen();
+    void setPowerScreen(int);
 };
-
-#endif
