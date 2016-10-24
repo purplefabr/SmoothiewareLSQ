@@ -13,6 +13,7 @@
 #include "ZProbe.h"
 #include "BaseSolution.h"
 #include "Matrix.h"
+#include "ActuatorCoordinates.h"
 
 #include <fastmath.h>
 #include <tuple>
@@ -59,7 +60,7 @@ bool LSQDeltaCalibrationStrategy::handleGcode(Gcode *gcode)
         // G code processing
         if (gcode->g == 32) { // LSQ auto calibration for delta
             // first wait for an empty queue i.e. no moves left
-            THEKERNEL->conveyor->wait_for_empty_queue();
+            THEKERNEL->conveyor->wait_for_idle();
             if (!calibrate(gcode)) {
                 gcode->stream->printf("Calibration failed to complete, probe not triggered\r\n");
                 return true;
@@ -69,7 +70,7 @@ bool LSQDeltaCalibrationStrategy::handleGcode(Gcode *gcode)
         }
         if(gcode->g == 29){
             // first wait for an empty queue i.e. no moves left
-            THEKERNEL->conveyor->wait_for_empty_queue();
+            THEKERNEL->conveyor->wait_for_idle();
             if (!manual_probe(gcode)) {
                 gcode->stream->printf("G29 failed to complete, probe not triggered\r\n");
                 return true;
@@ -184,7 +185,8 @@ bool LSQDeltaCalibrationStrategy::calibrate(Gcode *gcode)
 bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, float probe_radius, bool keep, Gcode *gcode)
 {
     float cartesian_mm[3];
-    std::array<float, 3> actuator_mm;
+    //std::array<float, 3> actuator_mm;
+	ActuatorCoordinates actuator_mm;
     std::vector<std::array<float, 3>> all_actuator_mm(sample_count);
     BaseSolution::arm_options_t options;
     
@@ -416,7 +418,7 @@ bool LSQDeltaCalibrationStrategy::get_trim(float &x, float &y, float &z)
 
 bool LSQDeltaCalibrationStrategy::probe_bed(int sample_count, float probe_radius, float* probe_heights, Gcode *gcode) {
     
-    int s;
+	float mm;
     float bedht= findBed();
     if(isnan(bedht)) return false;
     gcode->stream->printf("Initial Bed height is %.4f mm\n", bedht);
@@ -428,8 +430,8 @@ bool LSQDeltaCalibrationStrategy::probe_bed(int sample_count, float probe_radius
     float cartesian_mm[3];
     for (int i = 0; i < sample_count; i++) {
         get_probe_point(i, cartesian_mm, sample_count, probe_radius);
-        if (!zprobe->doProbeAt(s, cartesian_mm[0], cartesian_mm[1])) return false;
-        probe_heights[i] = zprobe->getProbeHeight() - zprobe->zsteps_to_mm(s);
+        if (!zprobe->doProbeAt(mm, cartesian_mm[0], cartesian_mm[1])) return false;
+        probe_heights[i] = zprobe->getProbeHeight() - mm;
         gcode->stream->printf("X: %.4f, Y: %.4f, Z: %.4f\r\n", cartesian_mm[0], cartesian_mm[1], probe_heights[i]);
         THEKERNEL->call_event(ON_IDLE);
     }
@@ -447,10 +449,10 @@ float LSQDeltaCalibrationStrategy::findBed()
     zprobe->coordinated_move(NAN, NAN, -deltaz, zprobe->getFastFeedrate(), true);
     
     // find bed, run at slow rate so as to not hit bed hard
-    int s;
-    if(!zprobe->run_probe(s, false)) return NAN;
+    float mm;
+    if(!zprobe->run_probe(mm, false)) return NAN;
     
-    return zprobe->zsteps_to_mm(s) + deltaz - zprobe->getProbeHeight(); // distance to move from home to 5mm above bed
+    return mm + deltaz - zprobe->getProbeHeight(); // distance to move from home to 5mm above bed
 }
 
 void LSQDeltaCalibrationStrategy::get_probe_point(int sample_number, float cartesian_mm[], int sample_count, float probe_radius) {
@@ -476,7 +478,7 @@ void LSQDeltaCalibrationStrategy::get_probe_point(int sample_number, float carte
     }
 }
 
-float LSQDeltaCalibrationStrategy::compute_derivative(int factor, float cartesian_mm[], std::array<float,3> actuator_mm) {
+float LSQDeltaCalibrationStrategy::compute_derivative(int factor, float cartesian_mm[], ActuatorCoordinates actuator_mm) {
     float perturb = 0.2;
     float zLo = 0;
     float zHi = 0;

@@ -5,6 +5,7 @@
 #include <vector>
 #include "LevelingStrategy.h"
 #include "Matrix.h"
+#include "ActuatorCoordinates.h"
 
 #define lsq_delta_calibration_strategy_checksum CHECKSUM("lsq-delta-calibration")
 
@@ -20,7 +21,7 @@ public:
 private:
     bool set_trim(float x, float y, float z);
     bool get_trim(float &x, float &y, float &z);
-    float compute_derivative(int factor, float cartesian_mm[], std::array<float,3> actuator_mm);
+    float compute_derivative(int factor, float cartesian_mm[], ActuatorCoordinates actuator_mm);
     void get_probe_point(int sample_number, float cartesian_mm[], int sample_count, float probe_radius);
     bool probe_bed(int sample_count, float probe_radius, float* probe_heights, Gcode *gcode);
     float findBed();

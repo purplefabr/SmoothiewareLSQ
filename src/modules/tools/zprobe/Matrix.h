@@ -10,6 +10,7 @@
 
 #include <cstddef>		// for size_t
 #include <fastmath.h>
+#include "platform_memory.h"
 
 // Base class for matrices, allows us to write functions that work with any size matrix
 template<class T> class MathMatrix
@@ -26,6 +27,16 @@ public:
 template<class T, size_t ROWS, size_t COLS> class FixedMatrix : public MathMatrix<T>
 {
 public:
+	FixedMatrix()
+	{
+		data = (T *)AHB0.alloc(ROWS * COLS * sizeof(T));
+	}
+	
+	~FixedMatrix()
+	{
+		AHB0.dealloc(data);
+	}
+
 	size_t rows() const override { return ROWS; }
 	size_t cols() const override { return COLS; }
 
@@ -66,7 +77,9 @@ public:
 	}
 
 private:
-	T data[ROWS * COLS];
+	//T data[ROWS * COLS];
+	T* data;
+	//grid= (float *)AHB0.alloc(grid_size * grid_size * sizeof(float));
 };
 
 // Swap 2 rows of a matrix
