@@ -30,7 +30,7 @@
 // deprecated
 #define probe_radius_checksum CHECKSUM("probe_radius")
 
-const int MAX_DELTA_PROBE_POINTS = 7;
+const int MAX_DELTA_PROBE_POINTS = 13;
 const int NumDeltaFactors = 7;
 
 bool LSQDeltaCalibrationStrategy::handleConfig()
@@ -132,8 +132,8 @@ bool LSQDeltaCalibrationStrategy::manual_probe(Gcode *gcode)
    
    The usage is as follows:
 
-   G32 (Nx) (Sx) (Rx.xx) (K)
-        Nx : Number of factors.  Valid values are 3, 4, 6, 7.
+   G32 (Xx) (Sx) (Rx.xx) (K)
+        Xx : Number of factors.  Valid values are 3, 4, 6, 7.
              Default is 6.
              3 = calibrate endstops for towers A,B,C
              4 = calibrate endstops and delta radius
@@ -151,8 +151,8 @@ bool LSQDeltaCalibrationStrategy::manual_probe(Gcode *gcode)
 bool LSQDeltaCalibrationStrategy::calibrate(Gcode *gcode)
 {
     int factors = this->factors;
-    if (gcode->has_letter('N')) {
-        factors = gcode->get_value('N');
+    if (gcode->has_letter('X')) {
+        factors = gcode->get_value('X');
         if (factors != 3 && factors != 4 && factors != 6 && factors != 7) {
             gcode->stream->printf("Number of factors for LSQ calibration is incorrect--must be 3, 4, 6, or 7");
             return false;
