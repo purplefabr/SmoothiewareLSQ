@@ -132,29 +132,32 @@ bool LSQDeltaCalibrationStrategy::manual_probe(Gcode *gcode)
    
    The usage is as follows:
 
-   G32 (Xx) (Sx) (Rx.xx) (K)
-        Xx : Number of factors.  Valid values are 3, 4, 6, 7.
+   G32 (Fx) (Sx) (Rx.xx) (K)
+        Fx : Number of factors.  Valid values are 3, 4, 6, 7.
              Default is 6.
              3 = calibrate endstops for towers A,B,C
              4 = calibrate endstops and delta radius
              6 = calibrate endstops, delta radius, and tower angles for A,B
              7 = calibrate endstops, delta radius, tower angles, and rod length
-             NOTE: autocalibration of rod length generally should be avoided
-        Sx : Number of sample points.  Should be a mutliple of 6 plus 1.  
-             Default is 7. Max is 13.
+             NOTE: autocalibration of rod length generally should be avoided, 
+			 if your object scale is uniformly wrong in X & Y, tweak rod length manually.
+        Sx : Number of sample points. 
+		     Should be a multiple of 6 plus 1.  
+             Default is 7. Max is 13. Developers can try increasing 
+			 MAX_DELTA_PROBE_POINTS and compiling to see if higher points work.
         Rx.xx : Maximum probe radius.  Default is 100.0.
-                Probes always include the center.  Probes are performed in
-                a series of circles, 6 points per circle, varying the radius
-                linearly from 0 to the probe radius.
+             Probes always include the center.  
+			 Probes are performed in a series of circles, 6 points per circle, 
+			 varying the radius linearly from 0 to the probe radius.
      
  */ 
 bool LSQDeltaCalibrationStrategy::calibrate(Gcode *gcode)
 {
     int factors = this->factors;
-    if (gcode->has_letter('X')) {
-        factors = gcode->get_value('X');
+    if (gcode->has_letter('F')) {
+        factors = gcode->get_value('F');
         if (factors != 3 && factors != 4 && factors != 6 && factors != 7) {
-            gcode->stream->printf("Number of factors for LSQ calibration is incorrect--must be 3, 4, 6, or 7");
+            gcode->stream->printf("Number of factors for LSQ calibration is incorrect--must be 3, 4, 6, or 7\r\n");
             return false;
         }
     }
@@ -250,13 +253,9 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
     gcode->stream->printf("Starting RMS Error: %.4f\r\n", sqrtf(initialSumOfSquares/sample_count));
     
     // The derivative of height change for each point wrt each factor
-    //std::vector<float> tempInit(num_factors, 0);
-    //std::vector<std::vector<float>> derivative_matrix(sample_count, tempInit);
     FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
-    FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
     // The normal matrix for each factor
-    //std::vector<float> tempInit2(NumDeltaFactors, 0);
-    //std::vector<std::vector<float>> normal_matrix(NumDeltaFactors + 1, tempInit2);
+	FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
     
     // The error residuals after 
     //std::vector<float> residuals(sample_count, 0);
@@ -266,8 +265,6 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
     //std::vector<float> solution(num_factors, 0);
     
     for (int iteration = 0; iteration < 2; iteration++) {
-        // Build derivative matrix
-        //FixedMatrix<float, MAX_DELTA_PROBE_POINTS, NumDeltaFactors> derivative_matrix;
         for (int i = 0; i < sample_count; i++) {
             get_probe_point(i, cartesian_mm, sample_count, probe_radius);
             cartesian_mm[2] = probe_heights[i];
@@ -280,8 +277,6 @@ bool LSQDeltaCalibrationStrategy::calibrate(int num_factors, int sample_count, f
         
         print_matrix("Derivative Matrix", derivative_matrix, sample_count, num_factors, gcode);
         
-        // Build normal matrix from derivatives
-        //FixedMatrix<float, NumDeltaFactors, NumDeltaFactors + 1> normal_matrix;
         for (int i = 0; i < num_factors; i++)
         {
             for (int j = 0; j < num_factors; j++)
