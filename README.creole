@@ -1,3 +1,23 @@
+==SmoothiewareLSQ
+
+Smoothieware Least SQuares is a fork from smoothieware edge that adds in the least squares delta calibration algorithm pioneered by David Crocker (dc42) so thanks go to David for proving his method as a good solution to delta calibration.
+
+==Installing SmoothiewareLSQ
+
+Install as normal Smoothieware:
+* Copy firmware.bin onto SD card (prebuilt binaries are in the /bin folder)
+
+Add four LSQ specific configuration settings which are shown in the example delta configs:
+* AzteegX5Mini.delta
+* Smoothieboard.delta
+(Search for: leveling-strategy.lsq-delta-calibration)
+
+Comment out any existing calibration strategy configuration lines.
+(i.e. leveling-strategy.delta-calibration)
+
+Reboot board to load firmware.
+
+
 Current build status: {{https://travis-ci.org/Smoothieware/Smoothieware.svg?branch=edge}}
 
 ==Overview

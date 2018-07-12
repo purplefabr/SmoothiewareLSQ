@@ -28,6 +28,7 @@
 #include "utils.h"
 
 // strategies we know about
+#include "LSQDeltaCalibrationStrategy.h"
 #include "DeltaCalibrationStrategy.h"
 #include "ThreePointStrategy.h"
 #include "DeltaGridStrategy.h"
@@ -91,6 +92,10 @@ void ZProbe::config_load()
 
             // check with each known strategy and load it if it matches
             switch(cs) {
+                case lsq_delta_calibration_strategy_checksum:
+                    this->strategies.push_back(new LSQDeltaCalibrationStrategy(this));
+                    found= true;
+                    break;
                 case delta_calibration_strategy_checksum:
                     ls= new DeltaCalibrationStrategy(this);
                     found= true;
