@@ -25,6 +25,8 @@
 #include "libs/SerialMessage.h"
 #include "StreamOutputPool.h"
 
+#include "mbed.h"
+
 // extern void setled(int, bool);
 #define setled(a, b) do {} while (0)
 
@@ -41,20 +43,28 @@ USBSerial::USBSerial(USB *u): USBCDC(u), rxbuf(256 + 8), txbuf(128 + 8)
     last_char_was_dollar = false;
 }
 
-void USBSerial::ensure_tx_space(int space)
+bool USBSerial::ensure_tx_space(int space)
 {
+    // we need some kind of timeout here or it will hang if upstream stalls
+    uint32_t start = us_ticker_read();
     while (txbuf.free() < space) {
+        if((us_ticker_read() - start) > 1000000) {
+            // 1 second timeout
+            return false;
+        }
         usb->endpointSetInterrupt(CDC_BulkIn.bEndpointAddress, true);
         usb->usbisr();
     }
+    return true;
 }
 
 int USBSerial::_putc(int c)
 {
     if (!attached)
         return 1;
-    ensure_tx_space(1);
-    txbuf.queue(c);
+    if(ensure_tx_space(1)) {
+        txbuf.queue(c);
+    }
 
     usb->endpointSetInterrupt(CDC_BulkIn.bEndpointAddress, true);
     return 1;
@@ -91,7 +101,7 @@ int USBSerial::puts(const char *str)
         return strlen(str);
     int i = 0;
     while (*str) {
-        ensure_tx_space(1);
+        if(!ensure_tx_space(1)) break;
         txbuf.queue(*str);
         if ((txbuf.available() % 64) == 0)
             usb->endpointSetInterrupt(CDC_BulkIn.bEndpointAddress, true);
@@ -188,7 +198,7 @@ bool USBSerial::USBEvent_EPOut(uint8_t bEP, uint8_t bEPStatus)
         }
 
         if(c[i] == 'X' - 'A' + 1) { // ^X
-            THEKERNEL->set_feed_hold(false); // required to free stuff up
+            //THEKERNEL->set_feed_hold(false); // required to free stuff up
             halt_flag = true;
             continue;
         }
@@ -198,7 +208,7 @@ bool USBSerial::USBEvent_EPOut(uint8_t bEP, uint8_t bEPStatus)
             continue;
         }
 
-        if(THEKERNEL->is_grbl_mode()) {
+        if(THEKERNEL->is_grbl_mode() || THEKERNEL->is_feed_hold_enabled()) {
             if(c[i] == '!') { // safe pause
                 THEKERNEL->set_feed_hold(true);
                 continue;
@@ -207,10 +217,6 @@ bool USBSerial::USBEvent_EPOut(uint8_t bEP, uint8_t bEPStatus)
             if(c[i] == '~') { // safe resume
                 THEKERNEL->set_feed_hold(false);
                 continue;
-            }
-            if(last_char_was_dollar && (c[i] == 'X' || c[i] == 'H')) {
-                // we need to do this otherwise $X/$H won't work if there was a feed hold like when stop is clicked in bCNC
-                THEKERNEL->set_feed_hold(false);
             }
         }
 
@@ -283,7 +289,7 @@ void USBSerial::on_idle(void *argument)
         halt_flag = false;
         THEKERNEL->call_event(ON_HALT, nullptr);
         if(THEKERNEL->is_grbl_mode()) {
-            puts("ALARM:Abort during cycle\r\n");
+            puts("ALARM: Abort during cycle\r\n");
         } else {
             puts("HALTED, M999 or $X to exit HALT state\r\n");
         }
@@ -319,7 +325,7 @@ void USBSerial::on_main_loop(void *argument)
     }
 
     // if we are in feed hold we do not process anything
-    if(THEKERNEL->get_feed_hold()) return;
+    //if(THEKERNEL->get_feed_hold()) return;
 
     if (nl_in_rx) {
         string received;

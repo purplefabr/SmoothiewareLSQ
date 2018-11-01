@@ -5,8 +5,6 @@
       You should have received a copy of the GNU General Public License along with Smoothie. If not, see <http://www.gnu.org/licenses/>.
 */
 
-// TODO : THIS FILE IS LAME, MUST BE MADE MUCH BETTER
-
 #include "libs/Module.h"
 #include "libs/Kernel.h"
 #include <math.h>
@@ -32,6 +30,7 @@
 #include "Thermistor.h"
 #include "max31855.h"
 #include "AD8495.h"
+#include "PT100_E3D.h"
 
 #include "MRI_Hooks.h"
 
@@ -67,6 +66,7 @@
 #define runaway_range_checksum             CHECKSUM("runaway_range")
 #define runaway_heating_timeout_checksum   CHECKSUM("runaway_heating_timeout")
 #define runaway_cooling_timeout_checksum   CHECKSUM("runaway_cooling_timeout")
+#define runaway_error_range_checksum       CHECKSUM("runaway_error_range")
 
 TemperatureControl::TemperatureControl(uint16_t name, int index)
 {
@@ -97,6 +97,7 @@ void TemperatureControl::on_module_loaded()
     // Register for events
     this->register_for_event(ON_GCODE_RECEIVED);
     this->register_for_event(ON_GET_PUBLIC_DATA);
+    this->register_for_event(ON_IDLE);
 
     if(!this->readonly) {
         this->register_for_event(ON_SECOND_TICK);
@@ -115,6 +116,12 @@ void TemperatureControl::on_halt(void *arg)
         this->target_temperature = UNDEFINED;
     }
 }
+
+void TemperatureControl::on_idle(void *arg)
+{
+    sensor->on_idle();
+}
+
 
 void TemperatureControl::on_main_loop(void *argument)
 {
@@ -143,13 +150,15 @@ void TemperatureControl::load_config()
     if(n > 63) n= 63;
     this->runaway_range= n;
 
-    // these need to fit in 7 bits after dividing by 8 so max is 2040 secs or 34 minutes
+    // these need to fit in 9 bits after dividing by 8 so max is 4088 secs or 68 minutes
     n= THEKERNEL->config->value(temperature_control_checksum, this->name_checksum, runaway_heating_timeout_checksum)->by_default(900)->as_number();
-    if(n > 2040) n= 2040;
+    if(n > 4088) n= 4088;
     this->runaway_heating_timeout = n/8; // we have 8 second ticks
-    n= THEKERNEL->config->value(temperature_control_checksum, this->name_checksum, runaway_cooling_timeout_checksum)->by_default((float)n)->as_number();
-    if(n > 2040) n= 2040;
+    n= THEKERNEL->config->value(temperature_control_checksum, this->name_checksum, runaway_cooling_timeout_checksum)->by_default(0)->as_number(); // disable by default
+    if(n > 4088) n= 4088;
     this->runaway_cooling_timeout = n/8;
+
+    this->runaway_error_range= THEKERNEL->config->value(temperature_control_checksum, this->name_checksum, runaway_error_range_checksum)->by_default(1.0F)->as_number();
 
     // Max and min temperatures we are not allowed to get over (Safety)
     this->max_temp = THEKERNEL->config->value(temperature_control_checksum, this->name_checksum, max_temp_checksum)->by_default(300)->as_number();
@@ -177,6 +186,8 @@ void TemperatureControl::load_config()
         sensor = new Max31855();
     } else if(sensor_type.compare("ad8495") == 0) {
         sensor = new AD8495();
+    } else if(sensor_type.compare("pt100_e3d") == 0) {
+        sensor = new PT100_E3D();
     } else {
         sensor = new TempSensor(); // A dummy implementation
     }
@@ -294,11 +305,11 @@ void TemperatureControl::on_gcode_received(void *argument)
                     this->heater_pin.max_pwm(gcode->get_value('Y'));
 
             }else if(!gcode->has_letter('S')) {
-                gcode->stream->printf("%s(S%d): Pf:%g If:%g Df:%g X(I_max):%g max pwm: %d O:%d\n", this->designator.c_str(), this->pool_index, this->p_factor, this->i_factor / this->PIDdt, this->d_factor * this->PIDdt, this->i_max, this->heater_pin.max_pwm(), o);
+                gcode->stream->printf("%s(S%d): Pf:%g If:%g Df:%g X(I_max):%g Y(max pwm):%d O:%d\n", this->designator.c_str(), this->pool_index, this->p_factor, this->i_factor / this->PIDdt, this->d_factor * this->PIDdt, this->i_max, this->heater_pin.max_pwm(), o);
             }
 
         } else if (gcode->m == 500 || gcode->m == 503) { // M500 saves some volatile settings to config override file, M503 just prints the settings
-            gcode->stream->printf(";PID settings:\nM301 S%d P%1.4f I%1.4f D%1.4f X%1.4f Y%d\n", this->pool_index, this->p_factor, this->i_factor / this->PIDdt, this->d_factor * this->PIDdt, this->i_max, this->heater_pin.max_pwm());
+            gcode->stream->printf(";PID settings, i_max, max_pwm:\nM301 S%d P%1.4f I%1.4f D%1.4f X%1.4f Y%d\n", this->pool_index, this->p_factor, this->i_factor / this->PIDdt, this->d_factor * this->PIDdt, this->i_max, this->heater_pin.max_pwm());
 
             gcode->stream->printf(";Max temperature setting:\nM143 S%d P%1.4f\n", this->pool_index, this->max_temp);
 
@@ -553,16 +564,19 @@ void TemperatureControl::on_second_tick(void *argument)
         // heater is active
         switch( this->runaway_state ){
             case NOT_HEATING: // If we were previously not trying to heat, but we are now, change to state WAITING_FOR_TEMP_TO_BE_REACHED
-                this->runaway_state= (this->target_temperature > current_temperature) ? HEATING_UP : COOLING_DOWN;
+                this->runaway_state= (this->target_temperature >= current_temperature || this->runaway_cooling_timeout == 0) ? HEATING_UP : COOLING_DOWN;
                 this->runaway_timer = 0;
+                tick= 0;
                 break;
 
             case HEATING_UP:
             case COOLING_DOWN:
-                if( (runaway_state == HEATING_UP && current_temperature >= this->target_temperature) ||
-                    (runaway_state == COOLING_DOWN && current_temperature <= this->target_temperature) ) {
+                // check temp has reached the target temperature within the given error range
+                if( (runaway_state == HEATING_UP && current_temperature >= (this->target_temperature - this->runaway_error_range)) ||
+                    (runaway_state == COOLING_DOWN && current_temperature <= (this->target_temperature + this->runaway_error_range)) ) {
                     this->runaway_state = TARGET_TEMPERATURE_REACHED;
                     this->runaway_timer = 0;
+                    tick= 0;
 
                 }else{
                     uint16_t t= (runaway_state == HEATING_UP) ? this->runaway_heating_timeout : this->runaway_cooling_timeout;

@@ -26,6 +26,7 @@ class TemperatureControl : public Module {
         void on_get_public_data(void* argument);
         void on_set_public_data(void* argument);
         void on_halt(void* argument);
+        void on_idle(void* argument);
 
         void set_desired_temperature(float desired_temperature);
 
@@ -69,6 +70,8 @@ class TemperatureControl : public Module {
         float d_factor;
         float PIDdt;
 
+        float runaway_error_range;
+
         enum RUNAWAY_TYPE {NOT_HEATING, HEATING_UP, COOLING_DOWN, TARGET_TEMPERATURE_REACHED};
 
         // pack these to save memory
@@ -80,14 +83,13 @@ class TemperatureControl : public Module {
             RUNAWAY_TYPE runaway_state:2;
             // Temperature runaway config options
             uint8_t runaway_range:6; // max 63
-            uint16_t runaway_heating_timeout:8; // 2040 secs
-            uint16_t runaway_cooling_timeout:8; // 2040 secs
-            uint16_t runaway_timer:8;
+            uint16_t runaway_heating_timeout:9; // 4088 secs
+            uint16_t runaway_cooling_timeout:9; // 4088 secs
+            uint16_t runaway_timer:9;
             uint8_t tick:3;
             bool use_bangbang:1;
             bool waiting:1;
             bool temp_violated:1;
-            bool link_to_tool:1;
             bool active:1;
             bool readonly:1;
             bool windup:1;
